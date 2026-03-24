@@ -1,51 +1,67 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
-function App() {
+function Login() {
+
   const [dbUrl, setDbUrl] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+
   const navigate = useNavigate();
 
-    const handleConnect = async () => {
-      if (!dbUrl || !username || !password) {
-        setMessage("❌ Please fill all fields");
-        return;
+  // 🔹 Clear fields when page loads (after logout also)
+  useEffect(() => {
+    setDbUrl("");
+    setUsername("");
+    setPassword("");
+    setMessage("");
+  }, []);
+
+  const handleConnect = async () => {
+    if (!dbUrl || !username || !password) {
+      setMessage("❌ Please fill all fields");
+      return;
+    }
+
+    setLoading(true);
+    setMessage("");
+
+    try {
+      const res = await fetch("http://localhost:8080/api/connect", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          url: dbUrl,
+          username: username,
+          password: password,
+        }),
+      });
+
+      const data = await res.text();
+
+      if (data === "SUCCESS") {
+        setMessage("✅ Connected Successfully");
+
+        // 🔹 Clear before navigation (extra safety)
+        setDbUrl("");
+        setUsername("");
+        setPassword("");
+
+        navigate("/dashboard");
+      } else {
+        setMessage("❌ Connection Failed");
       }
 
-      setLoading(true);
-      setMessage("");
+    } catch (err) {
+      setMessage("❌ Server Error");
+    }
 
-      try {
-        const res = await fetch("http://localhost:8080/api/connect", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            url: dbUrl,
-            username: username,
-            password: password,
-          }),
-        });
-
-        const data = await res.text();
-
-        if (data === "SUCCESS") {
-          setMessage("✅ Connected Successfully");
-          navigate("/dashboard");
-        } else {
-          setMessage("❌ Connection Failed");
-        }
-
-        } catch (err) {
-          setMessage("❌ Server Error");
-        }
-
-        setLoading(false);
-    };
+    setLoading(false);
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-900 text-white">
@@ -84,7 +100,7 @@ function App() {
           onClick={handleConnect}
           className="w-full bg-blue-600 hover:bg-blue-700 p-2 rounded mt-2"
         >
-          Connect
+          {loading ? "Connecting..." : "Connect"}
         </button>
 
         {message && (
@@ -97,4 +113,4 @@ function App() {
   );
 }
 
-export default App;
+export default Login;
