@@ -3,12 +3,14 @@ package com.aibackup.system.controller;
 import com.aibackup.system.entity.BackupLog;
 import com.aibackup.system.repository.BackupLogRepository;
 import com.aibackup.system.service.BackupService;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
+import java.sql.Connection;
+import java.sql.DriverManager;
 import java.util.List;
 
 @RestController
+@CrossOrigin(origins = "http://localhost:3000")
 public class HomeController {
 
     private final BackupLogRepository repository;
@@ -43,11 +45,26 @@ public class HomeController {
     public List<BackupLog> getLogs() {
         return repository.findAll();
     }
+
+    // Restore Backup
     @GetMapping("/restore")
-    public String restore(String file) {
+    public String restore(@RequestParam String file) {
         return backupService.restoreBackup(file);
     }
 
+    // 🔥 NEW: DB Status Check
+    @GetMapping("/status")
+    public String checkStatus() {
+        try {
+            Connection con = DriverManager.getConnection(
+                    "jdbc:postgresql://localhost:5432/aibackup",
+                    "postgres",
+                    "Postgre@2202"
+            );
+            con.close();
+            return "UP";
+        } catch (Exception e) {
+            return "DOWN";
+        }
+    }
 }
-
-

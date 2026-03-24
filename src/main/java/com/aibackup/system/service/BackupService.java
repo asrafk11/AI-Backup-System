@@ -76,14 +76,6 @@ public class BackupService {
     }
 
     // ==============================
-    // AUTO BACKUP (Every 5 Days at 2 AM)
-    // ==============================
-    @Scheduled(cron = "0 0 2 */5 * ?")
-    public void autoBackup() {
-        takeBackup();
-    }
-
-    // ==============================
     // RESTORE BACKUP
     // ==============================
     public String restoreBackup(String fileName) {
