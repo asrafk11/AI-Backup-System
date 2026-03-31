@@ -1,6 +1,7 @@
 package com.aibackup.system.entity;
 
 import jakarta.persistence.*;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "backup_logs")
@@ -10,15 +11,53 @@ public class BackupLog {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(nullable = false)
     private String status;
+
+    @Column(length = 2000)
     private String message;
 
-    // Getters and Setters
-    public Long getId() { return id; }
+    // 🔥 IMPORTANT (timestamp for sorting + UI)
+    @Column(nullable = false)
+    private LocalDateTime timestamp;
 
-    public String getStatus() { return status; }
-    public void setStatus(String status) { this.status = status; }
+    // ======================
+    // AUTO TIMESTAMP (BEST PRACTICE 🔥)
+    // ======================
+    @PrePersist
+    public void onCreate() {
+        this.timestamp = LocalDateTime.now();
+    }
 
-    public String getMessage() { return message; }
-    public void setMessage(String message) { this.message = message; }
+    // ======================
+    // GETTERS & SETTERS
+    // ======================
+
+    public Long getId() {
+        return id;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
+    }
+
+    public String getMessage() {
+        return message;
+    }
+
+    public void setMessage(String message) {
+        this.message = message;
+    }
+
+    public LocalDateTime getTimestamp() {
+        return timestamp;
+    }
+
+    public void setTimestamp(LocalDateTime timestamp) {
+        this.timestamp = timestamp;
+    }
 }

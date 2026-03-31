@@ -5,6 +5,7 @@ function Dashboard() {
 
   const [logs, setLogs] = useState([]);
   const [backupFiles, setBackupFiles] = useState([]);
+  const [toast, setToast] = useState("");
   const [showHistory, setShowHistory] = useState(false);
   const [actionMessage, setActionMessage] = useState("");
   const [loading, setLoading] = useState(false);
@@ -28,15 +29,10 @@ function Dashboard() {
     navigate("/", { replace: true });
   };
 
-  // 🔹 Backup
+  // 🔹 Backup (UPDATED WITH TOAST 🔥)
   const handleBackup = async () => {
     try {
-      setLoading(true);
-
-      if (!db) {
-        alert("No database connected ❌");
-        return;
-      }
+      setToast("⏳ Backup Started...");
 
       const res = await fetch("http://localhost:8080/api/backup", {
         method: "POST",
@@ -46,20 +42,20 @@ function Dashboard() {
 
       const data = await res.text();
 
-      setActionMessage(
-        data.trim() === "SUCCESS"
-          ? "Backup Created Successfully 🚀"
-          : "Backup Failed ❌"
-      );
+      if (res.ok) {
+        setToast("✅ Backup Completed");
+      } else {
+        setToast("❌ Backup Failed");
+      }
 
       fetchLogs();
       fetchBackupFiles();
 
     } catch {
-      setActionMessage("Server Error ❌");
+      setToast("❌ Server Error");
     }
 
-    setLoading(false);
+    setTimeout(() => setToast(""), 3000);
   };
 
   // 🔹 Restore
@@ -119,7 +115,7 @@ function Dashboard() {
     }
   };
 
-  // 🔹 Schedule (UPDATED 🔥)
+  // 🔹 Schedule
   const handleSchedule = async () => {
     if (days < 1) {
       setActionMessage("Days must be at least 1 ❌");
@@ -196,7 +192,7 @@ function Dashboard() {
 
       </div>
 
-      {/* 🔥 SCHEDULE STATUS */}
+      {/* SCHEDULE STATUS */}
       <div className="mt-6 bg-gray-800/70 p-4 rounded-xl">
         <h2 className="text-lg mb-2">⏰ Schedule Status</h2>
         <p className="text-yellow-400">{scheduleText}</p>
@@ -218,7 +214,12 @@ function Dashboard() {
           <button onClick={() => setShowModal(true)} className="bg-yellow-500 px-6 py-2 rounded-xl">
             ⏰ Schedule
           </button>
+
         </div>
+
+        <p className="text-sm text-gray-400 mt-2">
+          💾 Backup will be saved in <span className="text-yellow-400">C:/backup</span>
+        </p>
       </div>
 
       {/* MESSAGE */}
@@ -246,14 +247,13 @@ function Dashboard() {
         </div>
       </div>
 
-      {/* 🔥 SCHEDULE MODAL (IMPROVED UI) */}
+      {/* SCHEDULE MODAL */}
       {showModal && (
         <div className="fixed inset-0 flex items-center justify-center bg-black/60">
           <div className="bg-gray-900 p-6 rounded-xl w-80">
 
             <h2 className="mb-4 text-lg">⏰ Schedule Backup</h2>
 
-            <label className="text-sm text-gray-400">Select Time</label>
             <input
               type="time"
               value={time}
@@ -261,7 +261,6 @@ function Dashboard() {
               className="w-full p-2 bg-gray-800 mb-3 rounded"
             />
 
-            <label className="text-sm text-gray-400">Repeat Every (Days)</label>
             <input
               type="number"
               min="1"
@@ -269,10 +268,6 @@ function Dashboard() {
               onChange={(e) => setDays(e.target.value)}
               className="w-full p-2 bg-gray-800 rounded"
             />
-
-            <p className="text-sm text-gray-400 mt-3">
-              Every {days} days at {time}
-            </p>
 
             <div className="flex justify-end gap-2 mt-4">
               <button onClick={() => setShowModal(false)}>Cancel</button>
@@ -285,31 +280,41 @@ function Dashboard() {
         </div>
       )}
 
-      {/* 🔥 HISTORY POPUP */}
+      {/* HISTORY MODAL */}
       {showHistory && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/60 z-50">
-          <div className="bg-gray-900 p-6 rounded-xl w-[500px] max-h-[400px] overflow-y-auto">
+        <div className="fixed inset-0 flex items-center justify-center bg-black/70 z-50">
 
-            <div className="flex justify-between mb-4">
-              <h2 className="text-lg">📜 Backup History</h2>
-              <button onClick={() => setShowHistory(false)}>❌</button>
+          <div className="bg-gray-900 rounded-2xl w-[800px] h-[500px] shadow-lg flex flex-col">
+
+            <div className="flex justify-between items-center p-4 border-b border-gray-700">
+              <h2 className="text-xl font-semibold">📜 Backup History</h2>
+              <button onClick={() => setShowHistory(false)} className="text-red-400 text-lg">✖</button>
             </div>
 
-            {logs.length === 0 ? (
-              <p>No history available</p>
-            ) : (
-              logs.map((log, i) => (
-                <div key={i} className="border-b py-2">
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {logs.map((log, i) => (
+                <div key={i} className="bg-gray-800 p-4 rounded-xl border border-gray-700">
                   <p>{log.message}</p>
-                  <p className="text-xs text-gray-400">
-                    {new Date(log.timestamp).toLocaleString()}
+                  <p className="text-sm text-gray-400">
+                    {log.timestamp ? new Date(log.timestamp).toLocaleString() : "⏳ Old Record"}
                   </p>
-                  <span className="text-green-400 text-xs">{log.status}</span>
                 </div>
-              ))
-            )}
+              ))}
+            </div>
 
           </div>
+
+        </div>
+      )}
+
+      {/* 🔥 TOAST (FINAL POSITION) */}
+      {toast && (
+        <div className={`fixed bottom-5 right-5 px-4 py-2 rounded-lg shadow-lg text-sm
+          ${toast.includes("Completed") ? "bg-green-600" :
+            toast.includes("Failed") ? "bg-red-600" :
+            "bg-gray-800"}
+        `}>
+          {toast}
         </div>
       )}
 

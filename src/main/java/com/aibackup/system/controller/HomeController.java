@@ -3,7 +3,9 @@ package com.aibackup.system.controller;
 import com.aibackup.system.entity.BackupLog;
 import com.aibackup.system.repository.BackupLogRepository;
 import com.aibackup.system.service.BackupService;
+import com.aibackup.system.dto.DatabaseRequest;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.data.domain.Sort;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -16,55 +18,80 @@ public class HomeController {
     private final BackupLogRepository repository;
     private final BackupService backupService;
 
+    // 🔥 Schedule control flag
+    private boolean isScheduleActive = true;
+
     public HomeController(BackupLogRepository repository, BackupService backupService) {
         this.repository = repository;
         this.backupService = backupService;
     }
 
-    // Test DB Insert
-    @GetMapping("/test")
-    public String test() {
-
-        BackupLog log = new BackupLog();
-        log.setStatus("SUCCESS");
-        log.setMessage("Test Backup Entry");
-
-        repository.save(log);
-
-        return "Data Inserted Successfully 🚀";
+    // =========================
+    // 🔹 BACKUP
+    // =========================
+    @PostMapping("/backup")
+    public String backup(@RequestBody DatabaseRequest db) {
+        return backupService.takeBackup(db);
     }
 
-    // Trigger Backup
-    @GetMapping("/backup")
-    public String backup() {
-        return backupService.takeBackup();
+    // =========================
+    // 🔹 RESTORE
+    // =========================
+    @PostMapping("/restore")
+    public String restore(@RequestBody DatabaseRequest db,
+                          @RequestParam String file) {
+        return backupService.restoreBackup(db, file);
     }
 
-    // View All Backup Logs
+    // =========================
+    // 🔹 LOGS (SORTED 🔥)
+    // =========================
     @GetMapping("/logs")
     public List<BackupLog> getLogs() {
-        return repository.findAll();
+        return repository.findAll(Sort.by(Sort.Direction.DESC, "timestamp"));
     }
 
-    // Restore Backup
-    @GetMapping("/restore")
-    public String restore(@RequestParam String file) {
-        return backupService.restoreBackup(file);
-    }
-
-    // 🔥 NEW: DB Status Check
-    @GetMapping("/status")
-    public String checkStatus() {
+    // =========================
+    // 🔹 DB STATUS
+    // =========================
+    @PostMapping("/status")
+    public String checkStatus(@RequestBody DatabaseRequest db) {
         try {
             Connection con = DriverManager.getConnection(
-                    "jdbc:postgresql://localhost:5432/aibackup",
-                    "postgres",
-                    "Postgre@2202"
+                    db.getUrl(),
+                    db.getUsername(),
+                    db.getPassword()
             );
             con.close();
             return "UP";
         } catch (Exception e) {
             return "DOWN";
         }
+    }
+
+    // =========================
+    // 🔥 CANCEL SCHEDULE
+    // =========================
+    @PostMapping("/cancel-schedule")
+    public String cancelSchedule() {
+        isScheduleActive = false;
+        return "Schedule Cancelled Successfully ❌";
+    }
+
+    // =========================
+    // 🔥 START SCHEDULE (OPTIONAL)
+    // =========================
+    @PostMapping("/start-schedule")
+    public String startSchedule() {
+        isScheduleActive = true;
+        return "Schedule Started Successfully ✅";
+    }
+
+    // =========================
+    // 🔥 CHECK SCHEDULE STATUS
+    // =========================
+    @GetMapping("/schedule-status")
+    public String getScheduleStatus() {
+        return isScheduleActive ? "ACTIVE" : "INACTIVE";
     }
 }
