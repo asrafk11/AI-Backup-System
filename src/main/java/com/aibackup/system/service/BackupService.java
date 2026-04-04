@@ -6,6 +6,9 @@ import com.aibackup.system.dto.DatabaseRequest;
 import org.springframework.stereotype.Service;
 
 import java.io.*;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
 import java.time.LocalDateTime;
 
 @Service
@@ -17,6 +20,46 @@ public class BackupService {
         this.repository = repository;
     }
 
+    // ==============================
+    // 🔹 SAVE CONFIG (NEW)
+    // ==============================
+    public void saveScheduleConfig(DatabaseRequest db) {
+
+        try {
+            String query = "INSERT INTO schedule_config " +
+                    "(db_url, db_username, db_password, cron_expression, active) " +
+                    "VALUES (?, ?, ?, ?, ?)";
+
+            Connection con = DriverManager.getConnection(
+                    "jdbc:postgresql://localhost:5432/aibackup",
+                    "postgres",
+                    "Postgre@2202"
+            );
+
+            PreparedStatement ps = con.prepareStatement(query);
+
+            ps.setString(1, db.getUrl());
+            ps.setString(2, db.getUsername());
+            ps.setString(3, db.getPassword());
+            ps.setString(4, db.getCronExpression());
+            ps.setBoolean(5, true);
+
+            ps.executeUpdate();
+
+            ps.close();
+            con.close();
+
+            System.out.println("✅ Config Saved");
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new RuntimeException("Save Failed");
+        }
+    }
+
+    // ==============================
+    // 🔹 BACKUP
+    // ==============================
     public String takeBackup(DatabaseRequest db) {
 
         String backupDir = "C:/backup";
@@ -33,7 +76,6 @@ public class BackupService {
 
             ProcessBuilder processBuilder;
 
-            // 🔥 DB DETECTION
             if (url.contains("postgresql")) {
 
                 processBuilder = new ProcessBuilder(
@@ -102,6 +144,9 @@ public class BackupService {
         }
     }
 
+    // ==============================
+    // 🔹 RESTORE
+    // ==============================
     public String restoreBackup(DatabaseRequest db, String fileName) {
 
         String backupDir = "C:/backup";
@@ -163,5 +208,17 @@ public class BackupService {
 
             return "Restore Failed ❌";
         }
+    }
+    // ==============================
+    // 🔹 MULTI-USER BACKUP (Scheduler)
+    // ==============================
+    public void performBackup(String dbUrl, String username, String password) {
+
+        DatabaseRequest db = new DatabaseRequest();
+        db.setUrl(dbUrl);
+        db.setUsername(username);
+        db.setPassword(password);
+
+        takeBackup(db); // reuse existing logic
     }
 }

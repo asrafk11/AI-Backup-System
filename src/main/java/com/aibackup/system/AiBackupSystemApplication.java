@@ -5,11 +5,10 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication
-@EnableScheduling
+@EnableScheduling  // Enables all @Scheduled tasks (your multi-user scheduler)
 public class AiBackupSystemApplication {
 
 	public static void main(String[] args) {
 		SpringApplication.run(AiBackupSystemApplication.class, args);
 	}
-
 }

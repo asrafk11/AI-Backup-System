@@ -4,11 +4,17 @@ import { useNavigate } from "react-router-dom";
 function Dashboard() {
 
   const [logs, setLogs] = useState([]);
+  const [schedules, setSchedules] = useState([]);
+  const [showAll, setShowAll] = useState(false);
   const [backupFiles, setBackupFiles] = useState([]);
+  const [dbUrl, setDbUrl] = useState("");
+  const [dbUsername, setDbUsername] = useState("");
+  const [dbPassword, setDbPassword] = useState("");
   const [toast, setToast] = useState("");
   const [showHistory, setShowHistory] = useState(false);
   const [actionMessage, setActionMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [deleteId, setDeleteId] = useState(null);
 
   const [showModal, setShowModal] = useState(false);
   const [time, setTime] = useState("02:00");
@@ -27,6 +33,41 @@ function Dashboard() {
   const handleLogout = () => {
     localStorage.removeItem("db");
     navigate("/", { replace: true });
+  };
+
+  const saveConfig = async () => {
+
+    if (!db || !db.url || !db.username || !db.password) {
+      alert("DB details missing ❌");
+      return;
+    }
+
+    const [hour, minute] = time.split(":");
+    const cron = `0 ${minute} ${hour} */${days} * ?`;
+
+    const data = {
+      url: db.url,
+      username: db.username,
+      password: db.password,
+      cronExpression: cron
+    };
+
+    try {
+      const res = await fetch("http://localhost:8080/api/save-config", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(data)
+      });
+
+      console.log(await res.text());
+      alert("Config Saved ✅");
+
+    } catch (err) {
+      console.error(err);
+      alert("Error ❌");
+    }
   };
 
   // 🔹 Backup (UPDATED WITH TOAST 🔥)
@@ -115,8 +156,20 @@ function Dashboard() {
     }
   };
 
+  // 🔹 Fetch Schedules 🔥
+  const fetchSchedules = async () => {
+    try {
+      const res = await fetch("http://localhost:8080/schedules");
+      const data = await res.json();
+      setSchedules(data);
+    } catch {
+      console.log("Error fetching schedules");
+    }
+  };
+
   // 🔹 Schedule
   const handleSchedule = async () => {
+   console.log("STEP 1: Schedule clicked");
     if (days < 1) {
       setActionMessage("Days must be at least 1 ❌");
       return;
@@ -126,10 +179,18 @@ function Dashboard() {
     const cron = `0 ${minute} ${hour} */${days} * ?`;
 
     try {
+      // 🔥 DON'T BLOCK HERE
       await fetch("http://localhost:8080/schedule", {
         method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: cron
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          dbUrl,
+          dbUsername,
+          dbPassword,
+          cronExpression: cron
+        })
       });
 
       const formattedTime = new Date(`1970-01-01T${time}`)
@@ -139,6 +200,7 @@ function Dashboard() {
       setActionMessage("Schedule updated successfully ");
       setShowModal(false);
 
+
     } catch {
       setActionMessage("Schedule failed ");
     }
@@ -147,7 +209,68 @@ function Dashboard() {
   useEffect(() => {
     fetchLogs();
     fetchBackupFiles();
+    fetchSchedules();
   }, []);
+
+  const latestSchedule =
+    schedules.length > 0 ? schedules[schedules.length - 1] : null;
+
+
+    const formatCron = (cron) => {
+      try {
+        const parts = cron.split(" ");
+
+        const minute = parts[1];
+        const hour = parts[2];
+        const days = parts[3].replace("*/", "");
+
+        const time = new Date(`1970-01-01T${hour}:${minute}`)
+          .toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit"
+          });
+
+        return `Every ${days} days at ${time}`;
+      } catch {
+        return cron;
+      }
+    };
+    // 🟢 Click Cancel → open popup only
+    const deleteSchedule = (id) => {
+      setDeleteId(id);
+    };
+
+    // 🟢 Confirm Delete (safe + debug)
+    const confirmDelete = async () => {
+      if (!deleteId) {
+        alert("Invalid schedule ❌");
+        return;
+      }
+
+      try {
+        console.log("Deleting ID:", deleteId); // debug
+
+        const res = await fetch(`http://localhost:8080/schedule/${deleteId}`, {
+          method: "DELETE"
+        });
+
+        if (res.status !== 200) {
+          throw new Error("Delete failed");
+        }
+
+        setDeleteId(null); // close popup
+        fetchSchedules(); // refresh UI
+
+      } catch (err) {
+        console.error(err);
+        alert("Delete failed ❌");
+      }
+    };
+
+    // 🟢 Cancel Delete (close popup)
+    const cancelDelete = () => {
+      setDeleteId(null);
+    };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black text-white p-6">
@@ -195,7 +318,35 @@ function Dashboard() {
       {/* SCHEDULE STATUS */}
       <div className="mt-6 bg-gray-800/70 p-4 rounded-xl">
         <h2 className="text-lg mb-2">⏰ Schedule Status</h2>
-        <p className="text-yellow-400">{scheduleText}</p>
+        <p className="text-yellow-400">
+          {latestSchedule
+            ? formatCron(latestSchedule.cronExpression)
+            : "No schedule applied ❌"}
+        </p>
+
+        <button
+          onClick={() => setShowAll(!showAll)}
+          className="bg-blue-600 px-4 py-1 rounded mt-2"
+        >
+          {showAll ? "Hide Schedules" : "Show All Schedules"}
+        </button>
+
+        {showAll && (
+          <div className="mt-3">
+            {schedules.map((s) => (
+              <div key={s.id} className="bg-gray-700 p-3 rounded mb-2">
+                <p>🕒 {formatCron(s.cronExpression)}</p>
+                <p>Status: {s.active ? "🟢 ON" : "🔴 OFF"}</p>
+                <button
+                  onClick={() => deleteSchedule(s.id)}
+                  className="bg-red-500 px-2 py-1 rounded mt-2"
+                >
+                  ❌ Cancel
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* ACTIONS */}
@@ -315,6 +466,37 @@ function Dashboard() {
             "bg-gray-800"}
         `}>
           {toast}
+        </div>
+      )}
+
+      {deleteId && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black/60 z-50">
+
+          <div className="bg-gray-900 p-6 rounded-xl w-80 text-center shadow-lg">
+
+            <h2 className="text-lg mb-4">⚠ Delete Schedule?</h2>
+            <p className="text-sm text-gray-400 mb-5">
+              Are you sure you want to delete this schedule?
+            </p>
+
+            <div className="flex justify-center gap-4">
+              <button
+                onClick={confirmDelete}
+                className="bg-red-500 px-4 py-1 rounded"
+              >
+                Yes
+              </button>
+
+              <button
+                onClick={cancelDelete}
+                className="bg-gray-600 px-4 py-1 rounded"
+              >
+                No
+              </button>
+            </div>
+
+          </div>
+
         </div>
       )}
 

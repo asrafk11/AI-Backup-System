@@ -11,7 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @RestController
-@CrossOrigin(origins = "http://localhost:3000")
+@CrossOrigin(origins = {"http://localhost:3000", "http://localhost:3001"})
 @RequestMapping("/api")
 public class DBController {
 
@@ -22,7 +22,23 @@ public class DBController {
         this.backupService = backupService;
     }
 
+    // ==============================
+    // 🔹 SAVE CONFIG (NEW)
+    // ==============================
+    @PostMapping("/save-config")
+    public String saveConfig(@RequestBody DatabaseRequest db) {
+        try {
+            backupService.saveScheduleConfig(db);
+            return "SAVED";
+        } catch (Exception e) {
+            e.printStackTrace();
+            return "FAILED: " + e.getMessage();
+        }
+    }
+
+    // ==============================
     // 🔹 TEST CONNECTION
+    // ==============================
     @PostMapping("/connect")
     public String connectDB(@RequestBody DatabaseRequest db) {
         try {
@@ -35,30 +51,38 @@ public class DBController {
             return "SUCCESS";
         } catch (Exception e) {
             e.printStackTrace();
-            return "FAILED";
+            return "FAILED: " + e.getMessage();
         }
     }
 
-    // 🔹 BACKUP DATABASE (USES SERVICE 🔥)
+    // ==============================
+    // 🔹 BACKUP DATABASE
+    // ==============================
     @PostMapping("/backup")
     public String backupDB(@RequestBody DatabaseRequest db) {
-        return backupService.takeBackup(db);
+        try {
+            return backupService.takeBackup(db);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return "BACKUP FAILED: " + e.getMessage();
+        }
     }
 
+    // ==============================
     // 🔹 RESTORE LATEST BACKUP
+    // ==============================
     @PostMapping("/restore")
     public String restoreLatest(@RequestBody DatabaseRequest db) {
-
         try {
-
             File folder = new File(backupDir);
             File[] files = folder.listFiles();
 
             if (files == null || files.length == 0) {
-                return "NO_BACKUP";
+                return "NO_BACKUP_FOUND";
             }
 
             File latestFile = files[0];
+
             for (File f : files) {
                 if (f.lastModified() > latestFile.lastModified()) {
                     latestFile = f;
@@ -69,27 +93,15 @@ public class DBController {
 
         } catch (Exception e) {
             e.printStackTrace();
-            return "ERROR";
+            return "RESTORE FAILED: " + e.getMessage();
         }
     }
 
-    // 🔹 RESTORE SELECTED FILE
-    @PostMapping("/restore-selected")
-    public String restoreSelected(@RequestBody DatabaseRequest db,
-                                  @RequestParam String fileName) {
-
-        try {
-            return backupService.restoreBackup(db, fileName);
-        } catch (Exception e) {
-            e.printStackTrace();
-            return "ERROR";
-        }
-    }
-
+    // ==============================
     // 🔹 GET BACKUP FILES
+    // ==============================
     @GetMapping("/backups")
     public List<String> getBackupFiles() {
-
         File folder = new File(backupDir);
         File[] files = folder.listFiles();
 

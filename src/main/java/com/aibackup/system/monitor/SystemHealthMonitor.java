@@ -1,5 +1,6 @@
 package com.aibackup.system.monitor;
 
+import com.aibackup.system.dto.DatabaseRequest;
 import com.aibackup.system.service.BackupService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -66,7 +67,12 @@ public class SystemHealthMonitor {
             System.out.println("🚨 DB DOWN confirmed. Triggering backup...");
 
             try {
-                backupService.triggerAutoBackup(dbUrl, dbUsername, dbPassword);
+                DatabaseRequest db = new DatabaseRequest();
+                db.setUrl(dbUrl);
+                db.setUsername(dbUsername);
+                db.setPassword(dbPassword);
+
+                backupService.takeBackup(db);
             } catch (Exception ex) {
                 System.out.println("❌ Backup failed: " + ex.getMessage());
             }

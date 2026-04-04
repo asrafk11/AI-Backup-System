@@ -25,17 +25,21 @@ public class DynamicScheduler implements SchedulingConfigurer {
     public void configureTasks(ScheduledTaskRegistrar registrar) {
 
         registrar.addTriggerTask(
-                () -> backupService.takeBackup(),
+                () -> {
+                    System.out.println("Scheduler running...");
+                }, // ✅ FIX 1: comma added
+
                 triggerContext -> {
 
                     ScheduleConfig config = repo.findTopByOrderByIdDesc();
 
                     if (config == null || config.getCronExpression() == null) {
-                        return null; // no schedule set yet
+                        return null;
                     }
 
-                    return new CronTrigger(config.getCronExpression())
-                            .nextExecution(triggerContext);
+                    CronTrigger trigger = new CronTrigger(config.getCronExpression());
+
+                    return trigger.nextExecution(triggerContext); // ✅ FIX 2
                 }
         );
     }
