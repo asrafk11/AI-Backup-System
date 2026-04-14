@@ -1,15 +1,18 @@
 package com.aibackup.system.service;
 
 import com.aibackup.system.entity.BackupLog;
+import com.aibackup.system.entity.DatabaseConfig;
 import com.aibackup.system.repository.BackupLogRepository;
 import com.aibackup.system.dto.DatabaseRequest;
 import org.springframework.stereotype.Service;
+import com.aibackup.system.config.DynamicDBConnection;
 
 import java.io.*;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Service
 public class BackupService {
@@ -27,8 +30,8 @@ public class BackupService {
 
         try {
             String query = "INSERT INTO schedule_config " +
-                    "(db_url, db_username, db_password, cron_expression, active) " +
-                    "VALUES (?, ?, ?, ?, ?)";
+                    "(user_id, db_id, cron_expression, active) " +
+                    "VALUES (?, ?, ?, ?)";
 
             Connection con = DriverManager.getConnection(
                     "jdbc:postgresql://localhost:5432/aibackup",
@@ -38,22 +41,22 @@ public class BackupService {
 
             PreparedStatement ps = con.prepareStatement(query);
 
-            ps.setString(1, db.getUrl());
-            ps.setString(2, db.getUsername());
-            ps.setString(3, db.getPassword());
-            ps.setString(4, db.getCronExpression());
-            ps.setBoolean(5, true);
+            ps.setObject(1, java.util.UUID.fromString(db.getUserId()));
+            ps.setObject(2, java.util.UUID.fromString(db.getDbId()));
+            ps.setString(3, db.getCronExpression());
+            ps.setBoolean(4, true);
 
             ps.executeUpdate();
 
             ps.close();
             con.close();
 
-            System.out.println("✅ Config Saved");
+            System.out.println("✅ Schedule Saved with DB link");
 
         } catch (Exception e) {
             e.printStackTrace();
-            throw new RuntimeException("Save Failed");
+            throw new RuntimeException(e.getMessage());
+
         }
     }
 
@@ -209,16 +212,42 @@ public class BackupService {
             return "Restore Failed ❌";
         }
     }
+
     // ==============================
     // 🔹 MULTI-USER BACKUP (Scheduler)
     // ==============================
-    public void performBackup(String dbUrl, String username, String password) {
+    public void runBackup(DatabaseConfig db) {
 
-        DatabaseRequest db = new DatabaseRequest();
-        db.setUrl(dbUrl);
-        db.setUsername(username);
-        db.setPassword(password);
+        try {
+            // 🔥 Get dynamic connection
+            Connection connection = DynamicDBConnection.getConnection(db);
 
-        takeBackup(db); // reuse existing logic
+            System.out.println("✅ Connected to DB: " + db.getDbName());
+
+            // 🔥 Now reuse your existing backup logic
+            DatabaseRequest request = new DatabaseRequest();
+
+            String url;
+
+            if ("postgres".equalsIgnoreCase(db.getDbType())) {
+                url = "jdbc:postgresql://" + db.getHost() + ":" + db.getPort() + "/" + db.getDbName();
+            } else if ("mysql".equalsIgnoreCase(db.getDbType())) {
+                url = "jdbc:mysql://" + db.getHost() + ":" + db.getPort() + "/" + db.getDbName();
+            } else {
+                throw new RuntimeException("Unsupported DB type");
+            }
+
+            request.setUrl(url);
+            request.setUsername(db.getUsername());
+            request.setPassword(db.getPassword());
+            request.setDbType(db.getDbType());
+
+            takeBackup(request);
+
+            connection.close();
+
+        } catch (Exception e) {
+            System.out.println("❌ Dynamic backup failed: " + e.getMessage());
+        }
     }
 }

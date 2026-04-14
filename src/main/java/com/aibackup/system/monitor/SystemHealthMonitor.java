@@ -32,9 +32,6 @@ public class SystemHealthMonitor {
     public SystemHealthMonitor(BackupService backupService) {
         this.backupService = backupService;
     }
-
-    // ⏱ Runs every 30 sec
-    @Scheduled(fixedRate = 30000)
     public void checkDatabaseHealth() {
 
         System.out.println("\n🔍 Checking DB at: " + LocalDateTime.now());

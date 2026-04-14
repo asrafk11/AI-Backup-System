@@ -7,6 +7,13 @@ public class DatabaseRequest {
     private String password;
     private String cronExpression;
 
+    // 🔥 NEW (MULTI-USER + DB LINK)
+    private String userId;
+    private String dbId;
+
+    // 🔥 NEW (DB TYPE)
+    private String dbType;
+
     // ==============================
     // 🔹 URL
     // ==============================
@@ -41,7 +48,7 @@ public class DatabaseRequest {
     }
 
     // ==============================
-    // 🔹 CRON EXPRESSION (NEW)
+    // 🔹 CRON EXPRESSION
     // ==============================
     public String getCronExpression() {
         return cronExpression;
@@ -49,5 +56,38 @@ public class DatabaseRequest {
 
     public void setCronExpression(String cronExpression) {
         this.cronExpression = cronExpression;
+    }
+
+    // ==============================
+    // 🔥 USER ID
+    // ==============================
+    public String getUserId() {
+        return userId;
+    }
+
+    public void setUserId(String userId) {
+        this.userId = userId;
+    }
+
+    // ==============================
+    // 🔥 DB ID
+    // ==============================
+    public String getDbId() {
+        return dbId;
+    }
+
+    public void setDbId(String dbId) {
+        this.dbId = dbId;
+    }
+
+    // ==============================
+    // 🔥 DB TYPE
+    // ==============================
+    public String getDbType() {
+        return dbType;
+    }
+
+    public void setDbType(String dbType) {
+        this.dbType = dbType;
     }
 }

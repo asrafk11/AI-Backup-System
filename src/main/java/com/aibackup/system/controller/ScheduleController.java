@@ -7,42 +7,64 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.http.ResponseEntity;
 
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 @RestController
-@CrossOrigin
+@RequestMapping("/api")
+@CrossOrigin(origins = "http://localhost:3000")
 public class ScheduleController {
 
     @Autowired
     private ScheduleConfigRepository repo;
 
-    // 🟢 SAVE NEW SCHEDULE (WITH FULL DATA)
+    // 🟢 CREATE SCHEDULE
     @PostMapping("/schedule")
-    public String saveSchedule(@RequestBody ScheduleConfig config) {
+    public ResponseEntity<?> saveSchedule(@RequestBody ScheduleConfig config) {
 
-        // ❌ Prevent NULL rows
-        if (config.getDbUrl() == null ||
-                config.getDbUsername() == null ||
-                config.getDbPassword() == null) {
+        if (config.getUserId() == null ||
+                config.getDbId() == null ||
+                config.getCronExpression() == null) {
 
-            return "Invalid data ❌";
+            return ResponseEntity.badRequest().body(
+                    Map.of("success", false, "message", "Invalid data")
+            );
         }
 
-        config.setActive(true); // default ON
-
+        config.setActive(true);
         repo.save(config);
 
-        return "Schedule Saved ✅";
+        return ResponseEntity.ok(
+                Map.of("success", true)
+        );
     }
 
-    // 🟢 GET ALL SCHEDULES (IMPORTANT 🔥)
+    // 🔥 FIXED: GET ALL SCHEDULES (NO PARAM)
     @GetMapping("/schedules")
     public List<ScheduleConfig> getAllSchedules() {
         return repo.findAll();
     }
 
+    // 🟢 OPTIONAL: GET BY USER (if needed later)
+    @GetMapping("/schedules/user")
+    public List<ScheduleConfig> getSchedulesByUser(@RequestParam UUID userId) {
+        return repo.findByUserId(userId);
+    }
+
+    // 🟢 DELETE
     @DeleteMapping("/schedule/{id}")
-    public ResponseEntity<String> deleteSchedule(@PathVariable Long id) {
+    public ResponseEntity<?> deleteSchedule(@PathVariable Long id) {
+
+        if (!repo.existsById(id)) {
+            return ResponseEntity.status(404).body(
+                    Map.of("success", false, "message", "Schedule not found")
+            );
+        }
+
         repo.deleteById(id);
-        return ResponseEntity.ok("Deleted ✅");
+
+        return ResponseEntity.ok(
+                Map.of("success", true, "message", "Deleted successfully")
+        );
     }
 }

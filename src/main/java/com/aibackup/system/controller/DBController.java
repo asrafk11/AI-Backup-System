@@ -1,7 +1,11 @@
 package com.aibackup.system.controller;
 
 import com.aibackup.system.dto.DatabaseRequest;
+import com.aibackup.system.entity.DatabaseConfig;
+import com.aibackup.system.repository.DatabaseConfigRepository;
 import com.aibackup.system.service.BackupService;
+
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.File;
@@ -18,12 +22,31 @@ public class DBController {
     private final BackupService backupService;
     private final String backupDir = "C:/backup";
 
+    @Autowired
+    private DatabaseConfigRepository databaseConfigRepository;
+
     public DBController(BackupService backupService) {
         this.backupService = backupService;
     }
 
     // ==============================
-    // 🔹 SAVE CONFIG (NEW)
+    // 🔹 ADD DATABASE
+    // ==============================
+    @PostMapping("/add-db")
+    public DatabaseConfig addDatabase(@RequestBody DatabaseConfig db) {
+        return databaseConfigRepository.save(db);
+    }
+
+    // ==============================
+    // 🔥 GET ALL DATABASES (IMPORTANT FIX)
+    // ==============================
+    @GetMapping("/get-dbs")
+    public List<DatabaseConfig> getAllDatabases() {
+        return databaseConfigRepository.findAll();
+    }
+
+    // ==============================
+    // 🔹 SAVE SCHEDULE CONFIG
     // ==============================
     @PostMapping("/save-config")
     public String saveConfig(@RequestBody DatabaseRequest db) {

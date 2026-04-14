@@ -15,6 +15,8 @@ function Dashboard() {
   const [actionMessage, setActionMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [deleteId, setDeleteId] = useState(null);
+  const [databases, setDatabases] = useState([]);
+  const [selectedDb, setSelectedDb] = useState("");
 
   const [showModal, setShowModal] = useState(false);
   const [time, setTime] = useState("02:00");
@@ -24,6 +26,7 @@ function Dashboard() {
   const navigate = useNavigate();
 
   const db = JSON.parse(localStorage.getItem("db"));
+  const userId = localStorage.getItem("userId");
 
   const dbName = db?.url
     ? db.url.substring(db.url.lastIndexOf("/") + 1)
@@ -159,50 +162,63 @@ function Dashboard() {
   // 🔹 Fetch Schedules 🔥
   const fetchSchedules = async () => {
     try {
-      const res = await fetch("http://localhost:8080/schedules");
+      const res = await fetch("http://localhost:8080/api/schedules");
+
       const data = await res.json();
-      setSchedules(data);
-    } catch {
-      console.log("Error fetching schedules");
+
+      console.log("Schedules API:", data);
+
+      // ✅ IMPORTANT FIX
+      setSchedules(Array.isArray(data) ? data : []);
+
+    } catch (err) {
+      console.log(err);
+      setSchedules([]); // safety
     }
   };
 
   // 🔹 Schedule
   const handleSchedule = async () => {
-   console.log("STEP 1: Schedule clicked");
-    if (days < 1) {
-      setActionMessage("Days must be at least 1 ❌");
+    if (!selectedDb) {
+      setActionMessage("Please select a database ❌");
       return;
     }
 
     const [hour, minute] = time.split(":");
-    const cron = `0 ${minute} ${hour} */${days} * ?`;
+    const cron = `0 ${minute} ${hour} */${days} * *`;
+
+    let userId = localStorage.getItem("userId");
+
+    if (!userId) {
+      userId = crypto.randomUUID();
+      localStorage.setItem("userId", userId);
+    }
 
     try {
-      // 🔥 DON'T BLOCK HERE
-      await fetch("http://localhost:8080/schedule", {
+      const res = await fetch("http://localhost:8080/api/schedule", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          dbUrl,
-          dbUsername,
-          dbPassword,
-          cronExpression: cron
+          userId: userId,        // 🔥 IMPORTANT
+          dbId: selectedDb,      // 🔥 IMPORTANT
+          cronExpression: cron,
+          active: true
         })
       });
 
-      const formattedTime = new Date(`1970-01-01T${time}`)
-        .toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      const data = await res.json();
+      console.log("SCHEDULE RESPONSE:", data);
 
-      setScheduleText(`Every ${days} days at ${formattedTime} ✅`);
-      setActionMessage("Schedule updated successfully ");
+      fetchSchedules(); // refresh UI
+
+      setActionMessage("Schedule created successfully ✅");
       setShowModal(false);
 
-
-    } catch {
-      setActionMessage("Schedule failed ");
+    } catch (err) {
+      console.log(err);
+      setActionMessage("Schedule failed ❌");
     }
   };
 
@@ -210,6 +226,17 @@ function Dashboard() {
     fetchLogs();
     fetchBackupFiles();
     fetchSchedules();
+  }, []);
+
+  useEffect(() => {
+    fetch("http://localhost:8080/api/get-dbs")
+      .then(res => res.json())
+      .then(data => {
+        console.log("DB API:", data);
+
+        // ✅ FIX
+        setDatabases(Array.isArray(data) ? data : []);
+      });
   }, []);
 
   const latestSchedule =
@@ -235,35 +262,31 @@ function Dashboard() {
         return cron;
       }
     };
+
     // 🟢 Click Cancel → open popup only
     const deleteSchedule = (id) => {
       setDeleteId(id);
     };
 
     // 🟢 Confirm Delete (safe + debug)
-    const confirmDelete = async () => {
-      if (!deleteId) {
-        alert("Invalid schedule ❌");
-        return;
-      }
-
+    const handleDeleteSchedule = async (id) => {
       try {
-        console.log("Deleting ID:", deleteId); // debug
-
-        const res = await fetch(`http://localhost:8080/schedule/${deleteId}`, {
+        const res = await fetch(`http://localhost:8080/api/schedule/${id}`, {
           method: "DELETE"
         });
 
-        if (res.status !== 200) {
-          throw new Error("Delete failed");
+        const data = await res.json();
+
+        if (data.success) {
+          setActionMessage("Deleted successfully ✅");
+          fetchSchedules();
+        } else {
+          setActionMessage("Delete failed ❌");
         }
 
-        setDeleteId(null); // close popup
-        fetchSchedules(); // refresh UI
-
       } catch (err) {
-        console.error(err);
-        alert("Delete failed ❌");
+        console.log(err);
+        setActionMessage("Delete error ❌");
       }
     };
 
@@ -271,6 +294,38 @@ function Dashboard() {
     const cancelDelete = () => {
       setDeleteId(null);
     };
+
+    {deleteId && (
+      <div className="fixed inset-0 flex items-center justify-center bg-black/60">
+        <div className="bg-gray-900 p-6 rounded-xl w-80 text-center">
+
+          <h2 className="mb-4 text-lg">⚠️ Delete Schedule?</h2>
+          <p className="text-gray-400 mb-4">
+            Are you sure you want to delete this schedule?
+          </p>
+
+          <div className="flex justify-center gap-3">
+            <button
+              onClick={() => {
+                handleDeleteSchedule(deleteId);
+                setDeleteId(null);
+              }}
+              className="bg-red-500 px-4 py-1 rounded"
+            >
+              Yes
+            </button>
+
+            <button
+              onClick={() => setDeleteId(null)}
+              className="bg-gray-600 px-4 py-1 rounded"
+            >
+              No
+            </button>
+          </div>
+
+        </div>
+      </div>
+    )}
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black text-white p-6">
@@ -333,12 +388,12 @@ function Dashboard() {
 
         {showAll && (
           <div className="mt-3">
-            {schedules.map((s) => (
+            {Array.isArray(schedules) && schedules.map((s) => (
               <div key={s.id} className="bg-gray-700 p-3 rounded mb-2">
                 <p>🕒 {formatCron(s.cronExpression)}</p>
                 <p>Status: {s.active ? "🟢 ON" : "🔴 OFF"}</p>
                 <button
-                  onClick={() => deleteSchedule(s.id)}
+                  onClick={() => setDeleteId(s.id)}
                   className="bg-red-500 px-2 py-1 rounded mt-2"
                 >
                   ❌ Cancel
@@ -405,6 +460,7 @@ function Dashboard() {
 
             <h2 className="mb-4 text-lg">⏰ Schedule Backup</h2>
 
+            {/* ⏰ TIME INPUT */}
             <input
               type="time"
               value={time}
@@ -412,6 +468,7 @@ function Dashboard() {
               className="w-full p-2 bg-gray-800 mb-3 rounded"
             />
 
+            {/* 📅 DAYS INPUT */}
             <input
               type="number"
               min="1"
@@ -420,9 +477,45 @@ function Dashboard() {
               className="w-full p-2 bg-gray-800 rounded"
             />
 
+            {/* 🔥 DB DROPDOWN */}
+            <select
+              value={selectedDb}
+              onChange={(e) => setSelectedDb(e.target.value)}
+              className="w-full p-2 bg-gray-800 mt-3 rounded"
+            >
+              <option value="">Select Database</option>
+
+              {Array.isArray(databases) && databases.length > 0 ? (
+                databases.map((db) => (
+                  <option key={db.id} value={db.id}>
+                    {db.dbName} ({db.dbType})
+                  </option>
+                ))
+              ) : (
+                <option disabled>No databases available</option>
+              )}
+            </select>
+
+            {/* ⚠️ OPTIONAL MESSAGE */}
+            {!selectedDb && (
+              <p className="text-red-400 text-sm mt-2">
+                Please select a database
+              </p>
+            )}
+
+            {/* 🔘 ACTION BUTTONS */}
             <div className="flex justify-end gap-2 mt-4">
-              <button onClick={() => setShowModal(false)}>Cancel</button>
-              <button onClick={handleSchedule} className="bg-yellow-500 px-3 py-1 rounded">
+              <button
+                onClick={() => setShowModal(false)}
+                className="px-3 py-1 bg-gray-700 rounded"
+              >
+                Cancel
+              </button>
+
+              <button
+                onClick={handleSchedule}
+                className="bg-yellow-500 px-3 py-1 rounded hover:bg-yellow-400"
+              >
                 Save
               </button>
             </div>
@@ -481,14 +574,17 @@ function Dashboard() {
 
             <div className="flex justify-center gap-4">
               <button
-                onClick={confirmDelete}
+                onClick={() => {
+                  handleDeleteSchedule(deleteId);
+                  setDeleteId(null);
+                }}
                 className="bg-red-500 px-4 py-1 rounded"
               >
                 Yes
               </button>
 
               <button
-                onClick={cancelDelete}
+                onClick={() => setDeleteId(null)}
                 className="bg-gray-600 px-4 py-1 rounded"
               >
                 No

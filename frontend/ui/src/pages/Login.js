@@ -29,6 +29,7 @@ function Login() {
     setMessage("");
 
     try {
+      // 🔹 STEP 1: TEST CONNECTION
       const res = await fetch("http://localhost:8080/api/connect", {
         method: "POST",
         headers: {
@@ -42,26 +43,57 @@ function Login() {
       });
 
       const data = await res.text();
-
       console.log("API RESPONSE:", data);
 
-      // 🔥 IMPORTANT FIX (trim)
       if (data.includes("SUCCESS")) {
 
-        const dbData = {
+        // 🔥 STEP 2: SAFE PARSE
+        const cleanUrl = dbUrl.replace("jdbc:", "");
+        const url = new URL(cleanUrl);
+
+        const host = url.hostname;
+        const port = url.port;
+        const dbName = url.pathname.replace("/", "");
+        const dbType = dbUrl.includes("postgresql") ? "postgres" : "mysql";
+
+        // 🔥 FIXED USER ID (IMPORTANT)
+        let userId = localStorage.getItem("userId");
+
+        if (!userId) {
+          userId = crypto.randomUUID(); // ✅ correct UUID
+          localStorage.setItem("userId", userId);
+        }
+
+        console.log("PARSED:", { host, port, dbName, dbType, userId });
+
+        // 🔥 STEP 3: SAVE TO BACKEND
+        const saveRes = await fetch("http://localhost:8080/api/add-db", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            dbName,
+            dbType,
+            host,
+            port,
+            username,
+            password,
+            userId
+          })
+        });
+
+        console.log("SAVE RESPONSE:", await saveRes.text());
+
+        // 🔥 STEP 4: SAVE LOCALLY
+        localStorage.setItem("db", JSON.stringify({
           url: dbUrl,
           username,
           password
-        };
+        }));
 
-        // 🔥 SAVE DB
-        localStorage.setItem("db", JSON.stringify(dbData));
+        setMessage("✅ Connected & Saved Successfully");
 
-        console.log("Saved DB:", localStorage.getItem("db"));
-
-        setMessage("✅ Connected Successfully");
-
-        // smooth navigation
         setTimeout(() => {
           navigate("/dashboard");
         }, 800);
@@ -121,20 +153,6 @@ function Login() {
           className="w-full bg-blue-600 hover:bg-blue-700 p-3 rounded mt-2 disabled:opacity-50"
         >
           {loading ? "Connecting..." : "Connect Database"}
-        </button>
-
-        <button
-          onClick={() => {
-            localStorage.setItem("db", JSON.stringify({
-              url: "testdb",
-              username: "test",
-              password: "test"
-            }));
-            console.log("MANUAL SAVE DONE");
-          }}
-          className="w-full bg-gray-600 mt-2 p-2 rounded"
-        >
-          TEST SAVE
         </button>
 
         {message && (

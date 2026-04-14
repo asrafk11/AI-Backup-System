@@ -1,6 +1,7 @@
 package com.aibackup.system.entity;
 
 import jakarta.persistence.*;
+import java.util.UUID;
 
 @Entity
 @Table(name = "schedule_config")
@@ -10,10 +11,13 @@ public class ScheduleConfig {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // 🔥 DB DETAILS (PER USER)
-    private String dbUrl;
-    private String dbUsername;
-    private String dbPassword;
+    // 🔥 USER (multi-user support)
+    @Column(name = "user_id")
+    private UUID userId;
+
+    // 🔥 DATABASE LINK (IMPORTANT)
+    @Column(name = "db_id")
+    private UUID dbId;
 
     // 🔥 SCHEDULE
     private String cronExpression;
@@ -29,28 +33,20 @@ public class ScheduleConfig {
         return id;
     }
 
-    public String getDbUrl() {
-        return dbUrl;
+    public UUID getUserId() {
+        return userId;
     }
 
-    public void setDbUrl(String dbUrl) {
-        this.dbUrl = dbUrl;
+    public void setUserId(UUID userId) {
+        this.userId = userId;
     }
 
-    public String getDbUsername() {
-        return dbUsername;
+    public UUID getDbId() {
+        return dbId;
     }
 
-    public void setDbUsername(String dbUsername) {
-        this.dbUsername = dbUsername;
-    }
-
-    public String getDbPassword() {
-        return dbPassword;
-    }
-
-    public void setDbPassword(String dbPassword) {
-        this.dbPassword = dbPassword;
+    public void setDbId(UUID dbId) {
+        this.dbId = dbId;
     }
 
     public String getCronExpression() {
