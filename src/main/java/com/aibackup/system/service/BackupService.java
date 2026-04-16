@@ -6,6 +6,8 @@ import com.aibackup.system.repository.BackupLogRepository;
 import com.aibackup.system.dto.DatabaseRequest;
 import org.springframework.stereotype.Service;
 import com.aibackup.system.config.DynamicDBConnection;
+import com.aibackup.system.repository.DatabaseConfigRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.io.*;
 import java.sql.Connection;
@@ -19,12 +21,15 @@ public class BackupService {
 
     private final BackupLogRepository repository;
 
+    @Autowired
+    private DatabaseConfigRepository databaseConfigRepository;
+
     public BackupService(BackupLogRepository repository) {
         this.repository = repository;
     }
 
     // ==============================
-    // 🔹 SAVE CONFIG (NEW)
+    // 🔹 SAVE CONFIG
     // ==============================
     public void saveScheduleConfig(DatabaseRequest db) {
 
@@ -56,7 +61,6 @@ public class BackupService {
         } catch (Exception e) {
             e.printStackTrace();
             throw new RuntimeException(e.getMessage());
-
         }
     }
 
@@ -73,6 +77,12 @@ public class BackupService {
 
         try {
             String url = db.getUrl();
+
+            // ✅ FIX: prevent null crash
+            if (url == null || url.isEmpty()) {
+                return "Invalid DB URL ❌";
+            }
+
             String username = db.getUsername();
             String password = db.getPassword();
             String dbName = url.substring(url.lastIndexOf("/") + 1);
@@ -148,6 +158,38 @@ public class BackupService {
     }
 
     // ==============================
+    // 🔹 MANUAL BACKUP USING dbId
+    // ==============================
+    public String runManualBackup(UUID dbId) {
+
+        try {
+            DatabaseConfig db = databaseConfigRepository.findById(dbId)
+                    .orElseThrow(() -> new RuntimeException("DB not found"));
+
+            String url;
+
+            if ("postgres".equalsIgnoreCase(db.getDbType())) {
+                url = "jdbc:postgresql://" + db.getHost() + ":" + db.getPort() + "/" + db.getDbName();
+            } else if ("mysql".equalsIgnoreCase(db.getDbType())) {
+                url = "jdbc:mysql://" + db.getHost() + ":" + db.getPort() + "/" + db.getDbName();
+            } else {
+                throw new RuntimeException("Unsupported DB type");
+            }
+
+            DatabaseRequest request = new DatabaseRequest();
+            request.setUrl(url);
+            request.setUsername(db.getUsername());
+            request.setPassword(db.getPassword());
+            request.setDbType(db.getDbType());
+
+            return takeBackup(request);
+
+        } catch (Exception e) {
+            return "Manual Backup Failed ❌ " + e.getMessage();
+        }
+    }
+
+    // ==============================
     // 🔹 RESTORE
     // ==============================
     public String restoreBackup(DatabaseRequest db, String fileName) {
@@ -161,15 +203,38 @@ public class BackupService {
             String password = db.getPassword();
             String dbName = url.substring(url.lastIndexOf("/") + 1);
 
-            ProcessBuilder processBuilder = new ProcessBuilder(
-                    "C:\\Program Files\\PostgreSQL\\16\\bin\\pg_restore.exe",
-                    "-U", username,
-                    "-d", dbName,
-                    "-c",
-                    fullPath
-            );
+            ProcessBuilder processBuilder;
 
-            processBuilder.environment().put("PGPASSWORD", password);
+            // 🔹 PostgreSQL Restore (FIXED)
+            if (url.contains("postgresql")) {
+
+                processBuilder = new ProcessBuilder(
+                        "C:\\Program Files\\PostgreSQL\\16\\bin\\pg_restore.exe",
+                        "-U", username,
+                        "-d", dbName,
+                        "-F", "c",                      // ✅ IMPORTANT FIX
+                        "--clean",
+                        "--if-exists",
+                        fullPath
+                );
+
+                processBuilder.environment().put("PGPASSWORD", password);
+
+                // 🔹 MySQL Restore (SAFE VERSION)
+            } else if (url.contains("mysql")) {
+
+                processBuilder = new ProcessBuilder(
+                        "cmd.exe", "/c",
+                        "\"C:\\Program Files\\MySQL\\MySQL Server 8.0\\bin\\mysql.exe\" -u "
+                                + username + " -p" + password + " " + dbName + " < \"" + fullPath + "\""
+                );
+
+            } else {
+                return "Unsupported DB ❌";
+            }
+
+            System.out.println("Running restore for DB: " + dbName);
+            System.out.println("Backup file: " + fullPath);
 
             Process process = processBuilder.start();
 
@@ -188,9 +253,16 @@ public class BackupService {
 
             BackupLog log = new BackupLog();
 
-            if (exitCode == 0) {
+            System.out.println("Restore Exit Code: " + exitCode);
+            System.out.println("Restore Errors: " + errorOutput);
+
+            // ✅ STRICT SUCCESS CHECK
+            if (exitCode == 0 && errorOutput.length() == 0) {
                 log.setStatus("RESTORE_SUCCESS");
                 log.setMessage("Database Restored: " + fileName);
+            } else if (exitCode == 0) {
+                log.setStatus("RESTORE_SUCCESS");
+                log.setMessage("Restored with warnings: " + fileName);
             } else {
                 log.setStatus("RESTORE_FAILED");
                 log.setMessage("Error: " + errorOutput);
@@ -219,12 +291,10 @@ public class BackupService {
     public void runBackup(DatabaseConfig db) {
 
         try {
-            // 🔥 Get dynamic connection
             Connection connection = DynamicDBConnection.getConnection(db);
 
             System.out.println("✅ Connected to DB: " + db.getDbName());
 
-            // 🔥 Now reuse your existing backup logic
             DatabaseRequest request = new DatabaseRequest();
 
             String url;

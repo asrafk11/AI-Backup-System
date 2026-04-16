@@ -17,6 +17,8 @@ function Dashboard() {
   const [deleteId, setDeleteId] = useState(null);
   const [databases, setDatabases] = useState([]);
   const [selectedDb, setSelectedDb] = useState("");
+  const [selectedDbId, setSelectedDbId] = useState("");
+  const [showBackupModal, setShowBackupModal] = useState(false);
 
   const [showModal, setShowModal] = useState(false);
   const [time, setTime] = useState("02:00");
@@ -75,16 +77,18 @@ function Dashboard() {
 
   // 🔹 Backup (UPDATED WITH TOAST 🔥)
   const handleBackup = async () => {
+    if (!selectedDbId) {
+      setToast("⚠️ Select DB");
+      return;
+    }
+
     try {
       setToast("⏳ Backup Started...");
 
-      const res = await fetch("http://localhost:8080/api/backup", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify(db)
-      });
-
-      const data = await res.text();
+      const res = await fetch(
+        `http://localhost:8080/api/backup/run/${selectedDbId}`,
+        { method: "POST" }
+      );
 
       if (res.ok) {
         setToast("✅ Backup Completed");
@@ -115,13 +119,13 @@ function Dashboard() {
 
       const data = await res.text();
 
-      setActionMessage(
-        data.trim() === "SUCCESS"
-          ? "Restore Successful 🚀"
-          : data.trim() === "NO_BACKUP"
-          ? "No backup found ❌"
-          : "Restore Failed ❌"
-      );
+      if (data.includes("Restored")) {
+        setActionMessage("Restore Successful 🚀");
+      } else if (data.includes("No backup")) {
+        setActionMessage("No backup found ❌");
+      } else {
+        setActionMessage("Restore Failed ❌");
+      }
 
       fetchLogs();
 
@@ -409,7 +413,7 @@ function Dashboard() {
         <h2 className="text-xl mb-4">Actions</h2>
 
         <div className="flex gap-4">
-          <button onClick={handleBackup} className="bg-blue-600 px-6 py-2 rounded-xl">
+          <button onClick={() => setShowBackupModal(true)} className="bg-blue-600 px-6 py-2 rounded-xl">
             💾 Backup
           </button>
 
@@ -427,6 +431,45 @@ function Dashboard() {
           💾 Backup will be saved in <span className="text-yellow-400">C:/backup</span>
         </p>
       </div>
+
+      {showBackupModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center">
+          <div className="bg-gray-900 p-6 rounded-2xl w-80">
+
+            <h2 className="text-lg mb-4">Select Database</h2>
+
+            <select
+              className="w-full p-2 mb-4 bg-gray-800 rounded"
+              value={selectedDbId}
+              onChange={(e) => setSelectedDbId(e.target.value)}
+            >
+              <option value="">Select Database</option>
+              {databases.map((db) => (
+                <option key={db.id} value={db.id}>
+                  {db.dbName} ({db.username})
+                </option>
+              ))}
+            </select>
+
+            <div className="flex justify-between">
+              <button
+                className="bg-gray-600 px-4 py-2 rounded"
+                onClick={() => setShowBackupModal(false)}
+              >
+                Cancel
+              </button>
+
+              <button
+                className="bg-blue-600 px-4 py-2 rounded"
+                onClick={handleBackup}
+              >
+                Run Backup
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
 
       {/* MESSAGE */}
       {actionMessage && (

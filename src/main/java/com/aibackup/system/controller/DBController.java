@@ -6,6 +6,7 @@ import com.aibackup.system.repository.DatabaseConfigRepository;
 import com.aibackup.system.service.BackupService;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.File;
@@ -13,6 +14,8 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
+import java.util.Optional;
 
 @RestController
 @CrossOrigin(origins = {"http://localhost:3000", "http://localhost:3001"})
@@ -34,11 +37,27 @@ public class DBController {
     // ==============================
     @PostMapping("/add-db")
     public DatabaseConfig addDatabase(@RequestBody DatabaseConfig db) {
+
+        // 🔍 Check if DB already exists
+        Optional<DatabaseConfig> existingDb =
+                databaseConfigRepository.findByHostAndPortAndDbNameAndUsername(
+                        db.getHost(),
+                        db.getPort().intValue(),
+                        db.getDbName(),
+                        db.getUsername()
+                );
+
+        if (existingDb.isPresent()) {
+            // ✅ Already exists → return existing (NO duplicate)
+            return existingDb.get();
+        }
+
+        // ✅ New DB → save
         return databaseConfigRepository.save(db);
     }
 
     // ==============================
-    // 🔥 GET ALL DATABASES (IMPORTANT FIX)
+    // 🔹 GET ALL DATABASES
     // ==============================
     @GetMapping("/get-dbs")
     public List<DatabaseConfig> getAllDatabases() {
@@ -79,7 +98,7 @@ public class DBController {
     }
 
     // ==============================
-    // 🔹 BACKUP DATABASE
+    // 🔹 BACKUP (OLD - KEEP)
     // ==============================
     @PostMapping("/backup")
     public String backupDB(@RequestBody DatabaseRequest db) {
@@ -89,6 +108,15 @@ public class DBController {
             e.printStackTrace();
             return "BACKUP FAILED: " + e.getMessage();
         }
+    }
+
+    // ==============================
+    // 🔥 NEW: MANUAL BACKUP USING dbId
+    // ==============================
+    @PostMapping("/backup/run/{dbId}")
+    public ResponseEntity<String> runBackup(@PathVariable UUID dbId) {
+        String result = backupService.runManualBackup(dbId); // ✅ FIXED LINE
+        return ResponseEntity.ok(result);
     }
 
     // ==============================
